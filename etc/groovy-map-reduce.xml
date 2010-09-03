@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+  <context:annotation-config />
+  <context:component-scan base-package="com.jbrisbin.vpc.mapred" />
+  <context:property-placeholder system-properties-mode="OVERRIDE"
+                                location="etc/mapreduce.properties" />
+
+  <!-- RabbitMQ -->
+  <bean id="mqConnFactory"
+        class="org.springframework.amqp.rabbit.connection.SingleConnectionFactory"
+        p:username="${mq.user}"
+        p:password="${mq.password}"
+        p:port="${mq.port}">
+    <constructor-arg value="${mq.host}" />
+  </bean>
+  <bean id="rabbitAdmin" class="org.springframework.amqp.rabbit.core.RabbitAdmin">
+    <constructor-arg ref="mqConnFactory" />
+  </bean>
+  <!-- com.jbrisbin.vpc.mapred.RouteConfiguration -->
+
+  <!-- Groovy -->
+  <bean id="groovyScriptEngine" class="groovy.util.GroovyScriptEngine">
+    <constructor-arg>
+      <array>
+        <value>src/test/mapred</value>
+      </array>
+    </constructor-arg>
+  </bean>
+  <bean id="groovyShell" class="groovy.lang.GroovyShell" />
+
+  <!-- Groovy Map/Reduce -->
+  <bean id="groovyMessageConvertor" class="com.jbrisbin.vpc.mapred.GroovyMessageConvertor" />
+  <bean id="groovyMapListener"
+        class="org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter"
+        scope="prototype"
+        p:messageConverter-ref="groovyMessageConvertor">
+    <constructor-arg>
+      <bean class="com.jbrisbin.vpc.mapred.GroovyMessageListener"
+            p:type="map" />
+    </constructor-arg>
+  </bean>
+  <bean id="groovyReduceListener"
+        class="org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter"
+        scope="prototype"
+        p:messageConverter-ref="groovyMessageConvertor">
+    <constructor-arg>
+      <bean class="com.jbrisbin.vpc.mapred.GroovyMessageListener"
+            p:type="reduce" />
+    </constructor-arg>
+  </bean>
+
+  <!-- Map -->
+  <bean class="org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer"
+        p:connectionFactory-ref="mqConnFactory"
+        p:autoAck="true"
+        p:concurrentConsumers="1"
+        p:messageListener-ref="groovyMapListener">
+    <property name="queues">
+      <list>
+        <ref bean="mapQueue" />
+      </list>
+    </property>
+  </bean>
+
+  <!-- Reduce -->
+  <bean id="reduceListenerContainer"
+        class="org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer"
+        scope="prototype"
+        p:connectionFactory-ref="mqConnFactory"
+        p:autoStartup="false"
+        p:autoAck="true"
+        p:concurrentConsumers="1"
+        p:messageListener-ref="groovyReduceListener">
+  </bean>
+  <bean id="reduceTemplate"
+        class="org.springframework.amqp.rabbit.core.RabbitTemplate"
+        scope="prototype"
+        p:exchange="${reduce.exchange.name}">
+    <constructor-arg ref="mqConnFactory" />
+  </bean>
+  <bean id="replyTemplate"
+        class="org.springframework.amqp.rabbit.core.RabbitTemplate"
+        scope="prototype"
+        p:exchange="">
+    <constructor-arg ref="mqConnFactory" />
+  </bean>
+
+</beans>

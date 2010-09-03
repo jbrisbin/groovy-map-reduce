@@ -1,0 +1,51 @@
+mq.on error: {err ->
+  err.printStackTrace()
+}
+
+mq { channel ->
+  //channel.queueDelete("test.reduce")
+}
+
+total = 0
+
+mq.exchange(name: "") {
+
+  queue(name: "mapred.reply.q", routingKey: "mapred.reply.q") {
+    consume onmessage: { msg ->
+      log.info "total: ${total}"
+      total += Integer.parseInt(msg.bodyAsString)
+      if(total > 66) {
+        println total
+        false
+      } else {
+        true
+      }
+    }
+  }
+
+}
+
+mq.exchange(name: "map", type: "topic", durable: true, autoDelete: false) {
+
+
+  queue(routingKey: "groovy") {
+
+    for(i=0; i<23; i++) {
+      publish script: "test.groovy", body: { msg, out ->
+        msg.properties.correlationId = "test.mapred"
+        msg.properties.contentType = "application/json"
+        msg.properties.replyTo = "mapred.reply.q"
+        out << """[1, 2, 3, 4]""".bytes
+      }
+    }
+
+  }
+
+}
+
+body = { msg, out ->
+  msg.properties.contentType = "application/json"
+  msg.properties.headers["script"] = "mapred/test.groovy"
+  println "creating msg"
+  out << """ reduce = { println "Hello World!" } """.bytes
+}
