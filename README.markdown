@@ -1,4 +1,4 @@
-== RabbitMQ-based Groovy Map/Reduce Framework
+## RabbitMQ-based Groovy Map/Reduce Framework
 
 This is just the first alpha (consider it 0.0.1.ALPHA) of a Groovy Map/Reduce framework that uses RabbitMQ to comminucate.
 
